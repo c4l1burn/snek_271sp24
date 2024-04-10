@@ -52,6 +52,19 @@ typedef struct sockaddr *add4;
 //provided main:
 
 // So this main is using command line arguments. how do those work? extremely unclear. you
+
+int serv_start()
+{
+        printf("Starting server...\n");
+        return 0;
+}
+
+int client_start()
+{
+        printf("Starting client...\n");
+        return 0;
+}
+
 int main(int argc, char const *argv[])
 {
     printf("%s, expects (1) arg, %d provided", argv[0], argc-1);
@@ -65,12 +78,13 @@ int main(int argc, char const *argv[])
 
     if (argv[1][1] == 's')
     {
-        printf("Starting server...\n");
+        serv_start();
     }
 
     if (argv[1][1] == 'c')
     {
-        printf("Starting client...\n");
+        client_start();
+
     }
 
     if (argv[1][1] == 'h')
@@ -80,3 +94,7 @@ int main(int argc, char const *argv[])
 
     return 0;
 }
+
+
+
+
