@@ -1,4 +1,13 @@
 
+
+// DECOMPOSITION:
+
+// Get networking done in abstract. This is kind of done
+// get client -> server networking done on a one second loop
+// implement gameplay
+
+
+
 // Including a bunch of the given code here. maybe later ill figure out that this was stupid but we gotta start somewhere
 
 #include <sys/socket.h> // for socket()
@@ -51,7 +60,7 @@ typedef struct sockaddr *add4;
 
 //provided main:
 
-// So this main is using command line arguments. how do those work? extremely unclear. you
+// So this main is using command line arguments. how do those work? extremely unclear
 
 int serv_start()
 {
