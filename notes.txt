@@ -1,0 +1,33 @@
+Today (4/8/24) Notes
+
+Overview
+  Fork()
+  Sleep
+Pthread
+  Function Pointers
+  arg structs
+  create/exit/join
+  wordcount
+
+Fork() (presumably)
+
+Fcntl() stands for file control
+
+Fork() creates a child process by duplicating the calling process. The original is called the "parent process"
+pid_t fork(void);
+----
+int main()
+{
+	if(fork()) 
+	{
+	print("elder process");
+	} else {
+	print("child process");
+	}
+	return 0 ;
+}
+  this works because fork() returns the pid for the parent and 0 for the child process
+  ## Sample code on the slide using fork is the better way to do something once every (some amount of time)
+
+
+The even better way to do that is with pthreads. Unfortunately I zoned out by this point
