@@ -7,6 +7,9 @@
 #include <netinet/in.h>
 #include <fcntl.h>
 #include <time.h>
+//gcc -o fek_snek /Users/owner/Desktop/fek_snek.c
+//./fek_snek -s
+//./fek_snek -c
 
 #define PORT 5000          // Port number for the server
 #define BUFFER_SIZE 1024   // Buffer size for receiving data
