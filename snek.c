@@ -129,6 +129,11 @@ int client()
     }
     return 0;
 
+// note that i probably do actually want cloop and sloop to have some arguments, like passing the socket or w/ever
+int cloop()
+{
+    return 0;
+}
 
 }
 
@@ -170,6 +175,14 @@ int server()
 
 	printf("%s\n", buff) ;
     return 0;
+}
+
+int sloop()
+{
+    while (1)
+    {
+        read(conx, buff, SIZE) ;
+    }
 }
 
 
