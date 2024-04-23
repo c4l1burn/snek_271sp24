@@ -2,11 +2,17 @@
 
 // DECOMPOSITION:
 
-// Get networking done in abstract. This is kind of done
-// get client -> server networking done on a one second loop
-// implement gameplay
+// 1. Get snek.c to spin up a server and client that can talk to each other to some extent
+// nevermind that actually seems harder. new plan:
+// 2. Using the gcc multiple file complier thing (also: make a make for this) have code that calls functions from those other .c files
+/*
+    Things will basically work like this:
+	snek.c is a kind of hermaphroditous program that can either be a server or a client depending on which functions are called.
+	A client instance of snek.c (hereafter just "the client" or "the server") sends an input to a server process every (interval). The clock is also client side.
+	The client remembers the last input given, and sends that to the server every (interval) until a new direction is given
+	(the client also needs logic for how you can turn)
 
-
+*/
 
 // Including a bunch of the given code here. maybe later ill figure out that this was stupid but we gotta start somewhere
 
@@ -27,6 +33,7 @@
 // debug
 #define VERBOSE 1
 #define BUFF 16
+#define SIZE   1024
 
 // booleans
 #define TRUE 1
@@ -60,22 +67,140 @@ typedef struct sockaddr *add4;
 
 //provided main:
 
-// So this main is using command line arguments. how do those work? extremely unclear
+
+
+void get_sock(int *sock, add6 address, bool is_server)
+{
+ // Ill probably also want this. what does it do? a mystery!
+ // I mean okay I guess i can assume it gets a socket.
+}
+
+int client()
+{
+    /*
+     The role of the client() function is primarily to configure and connect a socket
+     that is passed as the sole argument to the client gameplay loop function cloop().
+
+     TODO NOW:
+        Get the code into a state where it sends *something* to reference_snek.out in server mode once per second
+    */
+
+    /*
+     * The following is me reteaching myself the slides to get my head around what I actually need to do
+     * socket(): int socket(int domain, int type, int protocol);
+     * the domain is always gonna be AF_INET6, the type is gonna be SOCK_STREAM* (thats an asterix, not a pointer), and the protocol is gonna be 0 bcs theres only one AF_INET6 protocol and its the default
+     * so we have: int socket(AF_INET6, SOCK_STREAM, 0);
+     * but how do we use that with, like, addresses and stuff?
+     * We use a struct, specifically sockaddr
+     * Heres how sockaddr_in6 is defined:
+     *
+     * struct sockaddr_in6 {
+           sa_family_t     sin6_family;     / AF_INET6
+           in_port_t       sin6_port;       / Port number
+           struct in6_addr sin6_addr;       / IPv6 address
+       };
+
+        There was other stuff there but it wasnt relevant.
+
+    */
+    int sock = socket(DOMAIN, SOCK_STREAM, 0);
+    struct sockaddr_in6 addr;
+    addr.sin6_family = DOMAIN;
+    addr.sin6_port = htons(PORT);
+    inet_pton(DOMAIN, LOOPBACK, &addr.sin6_addr);
+    // sets the client up to pass pointers (i think) to the loopback address
+
+    // okay so lets do something that will perform 10 write to socket events
+    //printf(sock);
+    // connect(sock, &address, sizeof(address));
+    // the fuckin (struct sockaddr *) thing is a cast and without it it throws a fit. whatever.
+	if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)))
+	{
+		perror("Client - conect failed.") ;
+		exit(-1) ;
+	}
+
+    int i;
+    char * str;
+    str = "Hello, World!\n";
+    for (i=0; i<10; i++)
+    {
+        write(sock, str, strlen(str)) ;
+    }
+    return 0;
+
+
+}
+
+int server()
+{
+    int sock = socket(DOMAIN, SOCK_STREAM, 0);
+    struct sockaddr_in6 addr;
+    addr.sin6_family = DOMAIN;
+    addr.sin6_port = htons(PORT);
+    addr.sin6_addr = in6addr_any;
+    // sets the server up to recieve any address, including addresses originating from our own machine eg. loopback.
+
+	socklen_t s = sizeof(struct sockaddr_in6) ;
+    char buff[SIZE] ;
+    memset(buff, 0, SIZE) ;
+    // this just stuffs 0 into the buffer
+    // im *pretty* sure that these if statements are actually doing the things and just also putting some exit control in there
+    if (bind(sock, (struct sockaddr *)&addr, s))
+	{
+		perror("Server - bindin failed.\n") ;
+		exit(-1) ;
+	}
+	if (listen(sock, 1))
+	{
+		perror("Server - listen failed.\n") ;
+		exit(-1) ;
+	}
+	int conx = accept(sock, (struct sockaddr *)&addr, &s) ;
+    //In this case conx, an int, is what the server reads from (treats as a file)
+	if (conx == -1)
+	{
+		perror("Server - accept failed.\n") ;
+		exit(-1) ;
+	}
+
+	printf("Somehow nothing fucked up! Server connected (i think??)\n");
+
+	read(conx, buff, SIZE) ;
+
+	printf("%s\n", buff) ;
+    return 0;
+}
+
 
 int serv_start()
 {
         printf("Starting server...\n");
+        server();
         return 0;
 }
 
 int client_start()
 {
         printf("Starting client...\n");
+        client();
+
         return 0;
 }
 
+// argc is argument count. argv is "argument vector", whatever the fuck. argv is how you do the command line arguments basically
 int main(int argc, char const *argv[])
 {
+    //int sock = socket(DOMAIN, SOCK_STREAM, 0);
+    // creates a socket
+    //struct sockaddr_in6 addr;
+    // defines the structure (called addr) that lets us use addresses with that socket
+
+    //addr.sin6_family = DOMAIN;
+    // the family of address is IPv6
+    //addr.sin6_port = htons(PORT);
+    // the port of address is (host to network short -- the internet forces us to use big endian no matter what)(port -- in this case port 49777)
+
     printf("%s, expects (1) arg, %d provided", argv[0], argc-1);
     if (argc == 2)
     {
@@ -100,7 +225,6 @@ int main(int argc, char const *argv[])
     {
         printf("HELP: Usage:  -s for server, -c for client\n");
     }
-
     return 0;
 }
 
