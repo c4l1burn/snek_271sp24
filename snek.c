@@ -1,48 +1,38 @@
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/socket.h>
-#include <arpa/inet.h>
 #include <netinet/in.h>
-#include <fcntl.h>
+#include <arpa/inet.h>
 #include <time.h>
-//gcc -o fek_snek /Users/owner/Desktop/fek_snek.c
-//./fek_snek -s
-//./fek_snek -c
 
-#define PORT 5000          // Port number for the server
-#define BUFFER_SIZE 1024   // Buffer size for receiving data
-#define GRID_SIZE 20       // Size of the game grid
+#define DEFAULT_PORT 5000
+#define BUFFER_SIZE 1024
+#define GRID_SIZE 20
 
-// Structure for representing a point on the grid
 typedef struct {
     int x, y;
 } Point;
 
-// Structure for representing a snake
 typedef struct {
-    Point *body;          // Dynamic array for snake's body
-    size_t length;        // Current length of the snake
-    int direction;        // Current movement direction of the snake
+    Point *body;
+    size_t length;
 } Snake;
 
-// Game state structure to hold current game information
 typedef struct {
-    Snake snake;          // Snake in the game
-    Point food;           // Food's position in the game
-    int game_over;        // Flag for game over state
+    Snake snake;
+    Point food;
+    int game_over;
 } GameState;
 
-// Function to randomly place food on the grid without overlapping the snake
 void place_food(GameState *game) {
     int placed = 0;
     while (!placed) {
-        // Generate random position for food
         game->food.x = rand() % GRID_SIZE;
         game->food.y = rand() % GRID_SIZE;
 
-        // Check if the food overlaps with the snake's body
         placed = 1;
         for (size_t i = 0; i < game->snake.length; i++) {
             if (game->food.x == game->snake.body[i].x && game->food.y == game->snake.body[i].y) {
@@ -53,180 +43,151 @@ void place_food(GameState *game) {
     }
 }
 
-// Function to initialize the game state with a snake at the center and random food placement
 void init_game(GameState *game) {
-    game->snake.body = malloc(sizeof(Point) * GRID_SIZE * GRID_SIZE); // Allocate enough space for snake's maximum length
-    game->snake.length = 1; // Start with a snake of length 1
-    game->snake.body[0].x = GRID_SIZE / 2; // Place the snake in the center of the grid
+    game->snake.body = malloc(GRID_SIZE * GRID_SIZE * sizeof(Point));
+    if (!game->snake.body) {
+        perror("Failed to allocate memory for snake body");
+        exit(EXIT_FAILURE);
+    }
+    game->snake.length = 1;
+    game->snake.body[0].x = GRID_SIZE / 2;
     game->snake.body[0].y = GRID_SIZE / 2;
-    game->snake.direction = 'R'; // Initial direction is right
-    game->game_over = 0; // Game is not over at start
-    place_food(game); // Place the initial food
+    game->game_over = 0;
+    place_food(game);
 }
+//gcc -o fek_snek fek_snek.c -lpthread
 
-// Update the game state based on the received command
 void update_game(GameState *game, char command) {
-    // Determine new position for snake's head based on the command
     Point next = game->snake.body[0];
     switch (command) {
-        case 'w': next.y--; break; // Move up
-        case 's': next.y++; break; // Move down
-        case 'a': next.x--; break; // Move left
-        case 'd': next.x++; break; // Move right
+        case 'w': next.y--; break;
+        case 's': next.y++; break;
+        case 'a': next.x--; break;
+        case 'd': next.x++; break;
     }
 
-    // Check if snake eats food
     if (next.x == game->food.x && next.y == game->food.y) {
-        game->snake.length++; // Increase snake length
-        place_food(game); // Place new food
+        Point* new_body = realloc(game->snake.body, (game->snake.length + 1) * sizeof(Point));
+        if (!new_body) {
+            perror("Failed to reallocate memory for snake body");
+            return; // Continue the game without growing the snake
+        }
+        game->snake.body = new_body;
+        game->snake.body[game->snake.length++] = next;
+        place_food(game);
     } else {
-        // Move the snake's body
         for (size_t i = game->snake.length - 1; i > 0; i--) {
             game->snake.body[i] = game->snake.body[i - 1];
         }
-    }
-    game->snake.body[0] = next; // Update the head position
-
-    // Check for collisions with the wall or itself
-    if (next.x < 0 || next.y < 0 || next.x >= GRID_SIZE || next.y >= GRID_SIZE) {
-        game->game_over = 1; // Wall collision
+        game->snake.body[0] = next;
     }
 
-    for (size_t i = 1; i < game->snake.length; i++) {
-        if (game->snake.body[i].x == next.x && game->snake.body[i].y == next.y) {
-            game->game_over = 1; // Self-collision
+    if (next.x < 0 || next.y < 0 || next.x >= GRID_SIZE || next.y >= GRID_SIZE ||
+        (game->snake.length > 1 && next.x == game->snake.body[1].x && next.y == game->snake.body[1].y)) {
+        game->game_over = 1;
+    }
+}
+
+void send_game_state(int client_sock, GameState *game) {
+    char buffer[BUFFER_SIZE];
+    int n = snprintf(buffer, sizeof(buffer), "Food: (%d, %d) Head: (%d, %d)\n",
+                     game->food.x, game->food.y, game->snake.body[0].x, game->snake.body[0].y);
+    if (send(client_sock, buffer, n, 0) == -1) {
+        perror("Failed to send game state");
+    }
+    if (game->game_over) {
+        send(client_sock, "Game Over!\n", 11, 0);
+    }
+}
+
+void *client_handler(void *socket_desc) {
+    int sock = *(int*)socket_desc;
+    free(socket_desc);
+
+    GameState game;
+    init_game(&game);
+    char buffer[BUFFER_SIZE];
+
+    while (!game.game_over) {
+        ssize_t read_size = recv(sock, buffer, BUFFER_SIZE - 1, 0);
+        if (read_size > 0) {
+            buffer[read_size] = '\0';
+            update_game(&game, buffer[0]);
+            send_game_state(sock, &game);
+        } else if (read_size == 0) {
+            puts("Client disconnected");
+            break;
+        } else {
+            perror("Receive failed");
             break;
         }
     }
+
+    close(sock);
+    free(game.snake.body);
+    return NULL;
 }
 
-// Send the current game state to the client
-void send_game_state(int client_sock, GameState *game) {
-    char buffer[BUFFER_SIZE];
-    snprintf(buffer, BUFFER_SIZE, "Food: (%d, %d) Head: (%d, %d)\n", 
-             game->food.x, game->food.y, game->snake.body[0].x, game->snake.body[0].y);
-    send(client_sock, buffer, strlen(buffer), 0); // Send game state
-    if (game->game_over) {
-        send(client_sock, "Game Over!\n", 11, 0); // Notify client of game over
-    }
-}
+void run_server(int port) {
+    int server_sock, *new_sock;
+    struct sockaddr_in server, client;
 
-// Function to run the server logic
-void run_server() {
-    int server_sock, client_sock;
-    struct sockaddr_in6 server_addr, client_addr;
-    socklen_t client_addr_size = sizeof(client_addr);
-
-    // Set up the server socket
-    server_sock = socket(AF_INET6, SOCK_STREAM, 0);
+    server_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (server_sock == -1) {
-        perror("Socket creation failed");
-        exit(EXIT_FAILURE);
+        perror("Could not create socket");
+        exit(1);
     }
 
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin6_family = AF_INET6;
-    server_addr.sin6_addr = in6addr_any;
-    server_addr.sin6_port = htons(PORT);
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = INADDR_ANY;
+    server.sin_port = htons(port);
 
-    if (bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
-        perror("Socket bind failed");
+    if (bind(server_sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
+        perror("Bind failed");
         close(server_sock);
-        exit(EXIT_FAILURE);
+        exit(1);
     }
 
-    listen(server_sock, 1); // Listen for one connection
-    printf("Server listening on port %d\n", PORT);
+    listen(server_sock, 3);
+    printf("Server listening on port %d...\n", port);
 
-    while ((client_sock = accept(server_sock, (struct sockaddr *)&client_addr, &client_addr_size)) != -1) {
-        GameState game;
-        init_game(&game);
-        char buffer[BUFFER_SIZE];
-
-        while (!game.game_over) {
-            ssize_t read_size = recv(client_sock, buffer, BUFFER_SIZE - 1, 0);
-            if (read_size > 0) {
-                buffer[read_size] = '\0';
-                update_game(&game, buffer[0]);
-                send_game_state(client_sock, &game);
-            }
+    while (1) {
+        socklen_t c = sizeof(struct sockaddr_in);
+        new_sock = malloc(sizeof(int));
+        if (!new_sock) {
+            perror("Memory allocation failed");
+            continue;
+        }
+        *new_sock = accept(server_sock, (struct sockaddr *)&client, &c);
+        if (*new_sock < 0) {
+            perror("Accept failed");
+            free(new_sock);
+            continue;
         }
 
-        printf("Client disconnected. Game over.\n");
-        close(client_sock);
-        free(game.snake.body);
+        pthread_t thread_id;
+        if (pthread_create(&thread_id, NULL, client_handler, (void*) new_sock) != 0) {
+            perror("Could not create thread");
+            free(new_sock);
+        } else {
+            pthread_detach(thread_id);
+        }
     }
 
     close(server_sock);
 }
 
-// Function to run the client logic
-void run_client() {
-    int sock;
-    struct sockaddr_in6 server_addr;
-    char buffer[BUFFER_SIZE];
-
-    // Create the client socket
-    sock = socket(AF_INET6, SOCK_STREAM, 0);
-    if (sock == -1) {
-        perror("Socket creation failed");
-        exit(EXIT_FAILURE);
-    }
-
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin6_family = AF_INET6;
-    inet_pton(AF_INET6, "::1", &server_addr.sin6_addr);
-    server_addr.sin6_port = htons(PORT);
-
-    // Connect to the server
-    if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
-        perror("Connect failed");
-        close(sock);
-        exit(EXIT_FAILURE);
-    }
-
-    printf("Connected to server at ::1:%d\n", PORT);
-
-    // Main loop for client input
-    char input;
-    printf("Enter 'w', 'a', 's', 'd' to move the snake. Press 'q' to quit.\n");
-
-    while (1) {
-        scanf(" %c", &input); // Read one character input from the user
-        if (input == 'w' || input == 'a' || input == 's' || input == 'd') {
-            send(sock, &input, sizeof(input), 0); // Send valid command to the server
-        } else if (input == 'q') {
-            printf("Exiting.\n");
-            break;
-        } else {
-            printf("Invalid input. Use only 'w', 'a', 's', 'd' for movement, 'q' to quit.\n");
-        }
-
-        ssize_t recv_size = recv(sock, buffer, BUFFER_SIZE - 1, 0);
-        if (recv_size > 0) {
-            buffer[recv_size] = '\0';
-            printf("%s", buffer); // Display server response
-        }
-    }
-
-    close(sock);
-}
-
-// Main function to decide whether to run as a server or client based on command-line arguments
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s -s for server, -c for client\n", argv[0]);
-        return EXIT_FAILURE;
+    int port = DEFAULT_PORT;
+    if (argc > 1) {
+        port = atoi(argv[1]);
+        if (port <= 0) {
+            fprintf(stderr, "Invalid port number. Using default %d\n", DEFAULT_PORT);
+            port = DEFAULT_PORT;
+        }
     }
 
-    if (strcmp(argv[1], "-s") == 0) {
-        run_server();
-    } else if (strcmp(argv[1], "-c") == 0) {
-        run_client();
-    } else {
-        fprintf(stderr, "Invalid option: %s. Use -s for server, -c for client.\n", argv[1]);
-        return EXIT_FAILURE;
-    }
-
+    srand(time(NULL)); // Seed the random number generator once
+    run_server(port);
     return 0;
 }
