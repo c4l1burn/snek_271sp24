@@ -24,6 +24,7 @@
 #include <string.h>     // for strlen()
 #include <time.h>       // for time()
 #include <fcntl.h>      // for fcntl()
+#include <pthread.h>    // for pthread_create()
 
 // sockets
 #define PORT 0xC271     // get it? CS 271?
@@ -59,6 +60,13 @@ typedef int bool;
 typedef struct sockaddr_in6 *add6;
 typedef struct sockaddr *add4;
 
+struct sockbuff {
+    int sock;
+    char * buff;
+} ;
+
+//typedef struct sockbuff sockbuff;
+
 
 //To test that your main is ready to support all critical tasks, just configure it to call simple wrapper functions with print statements as stand-ins for later networking and gameplay tasks
 
@@ -75,14 +83,71 @@ void get_sock(int *sock, add6 address, bool is_server)
  // I mean okay I guess i can assume it gets a socket.
 }
 
+// note that i probably do actually want cloop and sloop to have some arguments, like passing the socket or w/ever
+// client loop. Takes input, processes it into a game, sends that game to the client
+
+void * const_send(void * arg)
+// the purpose of this function is to read from a buffer and write to a socket. these two things will be contained in a struct.
+// cloop() is whats responsible for actually putting data in that buffer
+{
+    struct sockbuff * sb = (struct sockbuff * )arg;
+    // okaay so how do you read from an input buffer. how does any of that work.
+    while (1)
+    {
+        sleep(1);
+        char * buff_contents = sb->buff;
+        //printf("Contents of buff: %s \n", buff_contents);
+        write(sb->sock, sb->buff, strlen(sb->buff)) ;
+
+        // HOLY BABY JESUS IT FUCKING WORKS
+    }
+}
+int cloop(int sock)
+{
+    /*
+     *  Pthread Cloop logic
+     * Spin off a pthread that sets up a socket and sends whatevers in some buffer to it once every second
+     * then spin off another pthread that continouously reads input to that same buffer using pointers
+     *
+     * the cloop will be the thing that does the constant reading?
+     */
+
+    // pthread_create( &tid, NULL, &func, (void *) &val ) ;
+    // the function that the pthread runs and its arguments are the third and fourth arguments of pthread_create
+    // those arguments have to be presented as a void star, for some reason
+
+
+    // set up constant read from buffer in a pthread
+
+    char * inpt_buff = malloc(sizeof(char));
+
+    struct sockbuff sb;
+    struct sockbuff * sb_ptr = malloc(sizeof(sb)) ;
+    sb_ptr->buff = inpt_buff;
+    sb_ptr->sock = sock;
+
+    pthread_t tid_const_send ;
+    pthread_create(&tid_const_send, NULL, &const_send, (void *) sb_ptr);
+
+    /* ------------------------------------- */
+
+
+
+    while (1)   // may not even need a thread here? could just do it here.
+    {
+        scanf("%s", sb_ptr->buff);
+        //dude i think this might be enough. thats wild.
+
+    }
+
+    return 0;
+}
 int client()
 {
     /*
      The role of the client() function is primarily to configure and connect a socket
      that is passed as the sole argument to the client gameplay loop function cloop().
 
-     TODO NOW:
-        Get the code into a state where it sends *something* to reference_snek.out in server mode once per second
     */
 
     /*
@@ -120,22 +185,23 @@ int client()
 		exit(-1) ;
 	}
 
-    int i;
-    char * str;
-    str = "Hello, World!\n";
-    for (i=0; i<10; i++)
+    cloop(sock);
+    return 0;
+}
+int sloop(int conx)
+{
+    // okay so the point of sloop is to construct the gameplay basically
+    char buff[SIZE] ;
+    memset(buff, 0, SIZE) ;
+
+    while (1)
     {
-        write(sock, str, strlen(str)) ;
+        read(conx, buff, SIZE) ;
+        printf("%s\n", buff) ;
     }
     return 0;
-
-// note that i probably do actually want cloop and sloop to have some arguments, like passing the socket or w/ever
-int cloop()
-{
-    return 0;
 }
 
-}
 
 int server()
 {
@@ -147,8 +213,7 @@ int server()
     // sets the server up to recieve any address, including addresses originating from our own machine eg. loopback.
 
 	socklen_t s = sizeof(struct sockaddr_in6) ;
-    char buff[SIZE] ;
-    memset(buff, 0, SIZE) ;
+
     // this just stuffs 0 into the buffer
     // im *pretty* sure that these if statements are actually doing the things and just also putting some exit control in there
     if (bind(sock, (struct sockaddr *)&addr, s))
@@ -169,21 +234,12 @@ int server()
 		exit(-1) ;
 	}
 
-	printf("Somehow nothing fucked up! Server connected (i think??)\n");
+	printf("Somehow nothing fucked up! Server connected (i think?)\n");
 
-	read(conx, buff, SIZE) ;
-
-	printf("%s\n", buff) ;
+    sloop(conx);
     return 0;
 }
 
-int sloop()
-{
-    while (1)
-    {
-        read(conx, buff, SIZE) ;
-    }
-}
 
 
 int serv_start()
