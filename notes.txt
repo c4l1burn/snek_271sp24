@@ -31,3 +31,42 @@ int main()
 
 
 The even better way to do that is with pthreads. Unfortunately I zoned out by this point
+
+
+
+-----------------------------
+5/6/24 notes
+okay so im going through hridays code and trying to see what i can use, but before i forget:
+my idea for implementing the snake body is as follows:
+> have a snake_data struct
+> store the position of the head with x, y on a grid
+> store the length of the snake as well
+> when reading from the buffer (recieving input) update the snakes position using some basic logic. if-then chaining will suffice.
+> okay okay so:
+1. have snake head position
+2. copy snake head position into body[n_1]
+3. update snake head position
+4. derender elements of body outside the length
+like
+draw(" ", body[length + 1]);
+something like that?
+okay back to trawling
+
+Current issues:
+> gameover is nonfunctional
+> no graphics
+
+Grid done. Now i need to:
+1. print the grid in the right order
+2. put the right stuff in the grid
+
+
+
+
+
+
+
+
+
+
+
