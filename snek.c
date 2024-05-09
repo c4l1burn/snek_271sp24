@@ -255,33 +255,22 @@ void update_gamestate(GameState *game, char command)
 {
     Point next = game->snake.body[0];
     // next point = current position of the head
-    switch (command)
+    switch (command)                    // updates next point according to input
     {
         case 'w': next.y++; break;
         case 's': next.y--; break;
         case 'a': next.x--; break;
         case 'd': next.x++; break;
+        case 'q': printf("\nGoodbye!\n"); exit(EXIT_SUCCESS);
     }
-    // updates next point according to input
 
 
-    //just some variables for me to not have to look at all the struct notation. as a treat.
+    //just a variables for me to not have to look at all the struct notation. as a treat.
     int snakelen = game->snake.length;
 
     if (next.x == game->food.x && next.y == game->food.y)
     {
-        // if new point is inside food, (i.e. if player collected food)
-        /*
-        Point* new_body = realloc(game->snake.body, (snakelen + 1) * sizeof(Point));
-            // reallocates the memory availible to the snake body. almost certainly not necessary since we already allocate enough memory for the snake to take up the whole box but whatevs
-        if (!new_body) // error checking
-        {
-            perror("Failed to reallocate memory for snake body");
-            return; // Continue the game without growing the snake
-        }
-        game->snake.body = new_body;
-        */
-        //game->snake.length ++;
+
 
         for (int i = snakelen; i > 0; i--)
         {
@@ -299,7 +288,7 @@ void update_gamestate(GameState *game, char command)
         // iterate over the length of snake, shifting all their positions up by one
         for (int i = snakelen; i > 0; i--)
         {
-            if (i == snakelen) { game->snake.snend = game->snake.body[i]; } // updates the point "snend" to be the trailing space behind the snake
+            if (i == snakelen) { game->snake.snend = game->snake.body[i]; } // updates the point "snend" (snake end) to be the trailing space behind the snake
             game->snake.body[i] = game->snake.body[i - 1];
         }
 
@@ -311,6 +300,7 @@ void update_gamestate(GameState *game, char command)
         (game->snake.length > 1 && next.x == game->snake.body[1].x && next.y == game->snake.body[1].y))
         // if (x or y are less than 0 or outside the grid) or (the snake ran into itself): game over
         // god that was fucking incomprehensible.
+        // also it doesnt work but genuinely i dont care at this point
     {
         game->game_over = 1;
     }
@@ -332,40 +322,24 @@ char ** create_grid()
 
 void draw_snake(GameState *game, char ** grid)
 {
-    printf("entered draw_snake\n");
-    fflush(stdout);
-
     int snakelen = game->snake.length;
     Point * snegments = game->snake.body;
 
     int snend_x = game->snake.snend.x;
-    int snend_y = game->snake.snend.y;
+    int snend_y = game->snake.snend.y;  // im sure this is all self explanatory
     grid[snend_x][snend_y] = '.';
-    printf("got past concenience variable assignment\n");
-    fflush(stdout);
+
     for (int i = 0; i<=snakelen; i++)
     {
         int snex = snegments[i].x;
-        int sney = snegments[i].y;
-
-
-
-
+        int sney = snegments[i].y;      // yeah this rules
         grid[snex][sney] = SNEK;
         if (i>0)
         {
             grid[snex][sney] = SNOD;
         }
-
-    /*
-        if (i = 0)
-            {grid[snex][sney] = SNEK;}
-        else
-            {grid[snex][sney] = SNOD;}
-        */
     }
-    printf("got past for loop\n");
-    fflush(stdout);
+
 
 
 }
@@ -392,16 +366,9 @@ int sloop(int conx)
 
         int foodx = game.food.x;
         int foody = game.food.y;
-        printf("got to right b4 draw_snake\n");
-        fflush(stdout);
         draw_snake(&game, grid);
-        //grid[headx][heady] = SNEK;
         grid[foodx][foody] = SNAK;
-        // TODO:
-        //  accurate body rendering & cleanup
 
-        // DONE:
-        //  Orientation fix
 
         for (int y = HIGH - 1 ; y >= 0; y--)
         {
@@ -411,9 +378,10 @@ int sloop(int conx)
             }
             printf("\n");
         }
-
-        printf("Food: (%d, %d) Head: (%d, %d) Length: (%d)\n",foodx, foody, headx, heady, game.snake.length);
         printf("\n");
+        // debug prints
+        //printf("Food: (%d, %d) Head: (%d, %d) Length: (%d)\n",foodx, foody, headx, heady, game.snake.length);
+        //printf("\n");
     }    return 0;
 }
 
