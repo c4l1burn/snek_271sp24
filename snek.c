@@ -42,12 +42,12 @@
 typedef int bool;
 
 // gameplay
-#define HIGH 10 // org 23
-#define WIDE 20 // org 80
+#define HIGH 23
+#define WIDE 80
 
-#define SNAK '&'
+#define SNAK '@'
 #define SNEK 'O' // what.
-#define APPL '@'
+#define SNOD 'X' // for "snake bod"
 
 #define REDO 'r'
 #define QUIT 'q'
@@ -82,11 +82,13 @@ void * const_send(void * arg)
 // cloop() is whats responsible for actually putting data in that buffer
 {
     struct sockbuff * sb = (struct sockbuff * )arg;
+    //char * init;
+    char init = 'w';
     // okaay so how do you read from an input buffer. how does any of that work.
+    write(sb->sock, &init, strlen(&init)) ;
     while (1)
     {
         sleep(1);
-        char * buff_contents = sb->buff;
         //printf("Contents of buff: %s \n", buff_contents);
         write(sb->sock, sb->buff, strlen(sb->buff)) ;
 
@@ -194,6 +196,7 @@ typedef struct {
 // Snake: represents the PC's avatar and its attributes
 typedef struct {
     Point * body;  // an array of points which make up the body of the snake
+    Point snend;   // "snend" for "snake end"
     size_t length; // integer which defines the length of the snake
 } Snake;
 
@@ -239,7 +242,7 @@ void init_game(GameState *game)
         perror("Failed to allocate memory for snake body");
         exit(EXIT_FAILURE);
     }
-    game->snake.length = 1;           // init length to one
+    game->snake.length = 4;           // init length to one
     game->snake.body[0].x = WIDE / 2;
     game->snake.body[0].y = HIGH / 2; // initializes the x and y to be values associated with WIDE and HIGH respectively
     game->game_over = 0;              // sets gameover to "No"
@@ -247,7 +250,7 @@ void init_game(GameState *game)
 }
 
 // takes a game to update and a command to update it with
-void update_game(GameState *game, char command)
+void update_gamestate(GameState *game, char command)
 //  command will be read from the buffer that I set up
 {
     Point next = game->snake.body[0];
@@ -261,11 +264,15 @@ void update_game(GameState *game, char command)
     }
     // updates next point according to input
 
+
+    //just some variables for me to not have to look at all the struct notation. as a treat.
+    int snakelen = game->snake.length;
+
     if (next.x == game->food.x && next.y == game->food.y)
     {
         // if new point is inside food, (i.e. if player collected food)
-
-        Point* new_body = realloc(game->snake.body, (game->snake.length + 1) * sizeof(Point));
+        /*
+        Point* new_body = realloc(game->snake.body, (snakelen + 1) * sizeof(Point));
             // reallocates the memory availible to the snake body. almost certainly not necessary since we already allocate enough memory for the snake to take up the whole box but whatevs
         if (!new_body) // error checking
         {
@@ -273,16 +280,29 @@ void update_game(GameState *game, char command)
             return; // Continue the game without growing the snake
         }
         game->snake.body = new_body;
-        game->snake.body[game->snake.length++] = next;
-            // snake body element number (length plus one) is now equal to this new point we're rockin with
+        */
+        //game->snake.length ++;
+
+        for (int i = snakelen; i > 0; i--)
+        {
+            if (i == snakelen)
+            {
+                game->snake.length ++;
+                game->snake.body[i+1] = game->snake.body[i];
+            }
+            game->snake.body[i] = game->snake.body[i - 1];
+        }
+        game->snake.body[0] = next;
         place_food(game);
     } else {
         // if the player did anything besides collect food this frame
-        for (size_t i = game->snake.length - 1; i > 0; i--)
-            // iterate over the length of snake, shifting all their positions up by one
+        // iterate over the length of snake, shifting all their positions up by one
+        for (int i = snakelen; i > 0; i--)
         {
+            if (i == snakelen) { game->snake.snend = game->snake.body[i]; } // updates the point "snend" to be the trailing space behind the snake
             game->snake.body[i] = game->snake.body[i - 1];
         }
+
         game->snake.body[0] = next;
         // update head to next
     }
@@ -298,24 +318,57 @@ void update_game(GameState *game, char command)
 
 char ** create_grid()
 {
-    char **grid = (char **)malloc(sizeof(char *) * WIDE); // sort of the grid x
+    char ** grid = (char **)malloc(sizeof(char *) * WIDE); // sort of the grid x
     for (int i = 0; i < WIDE; i++)
     {
         grid[i] = (char *)malloc(sizeof(char) * HIGH);
-    }
-
-    // Initialize each element of the array to a period
-    for (int i = 0; i < WIDE; i++)
-    {
         for (int j = 0; j < HIGH; j++)
         {
             grid[i][j] = '.';
         }
     }
     return grid;
-
 }
 
+void draw_snake(GameState *game, char ** grid)
+{
+    printf("entered draw_snake\n");
+    fflush(stdout);
+
+    int snakelen = game->snake.length;
+    Point * snegments = game->snake.body;
+
+    int snend_x = game->snake.snend.x;
+    int snend_y = game->snake.snend.y;
+    grid[snend_x][snend_y] = '.';
+    printf("got past concenience variable assignment\n");
+    fflush(stdout);
+    for (int i = 0; i<=snakelen; i++)
+    {
+        int snex = snegments[i].x;
+        int sney = snegments[i].y;
+
+
+
+
+        grid[snex][sney] = SNEK;
+        if (i>0)
+        {
+            grid[snex][sney] = SNOD;
+        }
+
+    /*
+        if (i = 0)
+            {grid[snex][sney] = SNEK;}
+        else
+            {grid[snex][sney] = SNOD;}
+        */
+    }
+    printf("got past for loop\n");
+    fflush(stdout);
+
+
+}
 
 // INPUT: a preconfigured connection
 // OUTPUT: a rendered game
@@ -327,45 +380,41 @@ int sloop(int conx)
     GameState game;
     init_game(&game);
     char ** grid = create_grid();
-    int i, j;
     while (1)
     {
+        // Reads what was put in the buffer, uses that to update the gamestate
         read(conx, buff, SIZE) ;
-        // read SIZE bytes into buff from conx
-        update_game(&game,buff[0]);
+        update_gamestate(&game,buff[0]);
+
+        // convenience vars
         int headx = game.snake.body[0].x;
         int heady = game.snake.body[0].y;
 
         int foodx = game.food.x;
         int foody = game.food.y;
-
-
-        grid[headx][heady] = SNEK;
-        grid[foodx][foody] = APPL;
-        grid[14][6] = 'Q';
+        printf("got to right b4 draw_snake\n");
+        fflush(stdout);
+        draw_snake(&game, grid);
+        //grid[headx][heady] = SNEK;
+        grid[foodx][foody] = SNAK;
         // TODO:
-        // for loop that iterates over every item in snake body over one and draws it
-        // More helper functions in general
+        //  accurate body rendering & cleanup
 
-        // Print each row of the array
-        // this seems to work
-        printf("Gut check method:");
-        for (int i = HIGH; i>0; i--) // gutcheck method
+        // DONE:
+        //  Orientation fix
+
+        for (int y = HIGH - 1 ; y >= 0; y--)
         {
-            for (int j = 0; j < WIDE; j++)
+            for (int x = 0; x < WIDE; x++)
             {
-                printf("%c ", grid[i][j]); // just appending
+                printf("%c", grid[x][y]);
             }
             printf("\n");
         }
 
-        printf("Food: (%d, %d) Head: (%d, %d)\n",foodx, foody, headx, heady);
+        printf("Food: (%d, %d) Head: (%d, %d) Length: (%d)\n",foodx, foody, headx, heady, game.snake.length);
         printf("\n");
-        // w turns you left
-        // my x and y are swapped somehow
-        // oh yeah and going far enough left brings you up a level which seems like it would indicate a rendering error
-    }
-    return 0;
+    }    return 0;
 }
 
 
