@@ -1,21 +1,5 @@
 
 
-// DECOMPOSITION:
-
-// 1. Get snek.c to spin up a server and client that can talk to each other to some extent
-// nevermind that actually seems harder. new plan:
-// 2. Using the gcc multiple file complier thing (also: make a make for this) have code that calls functions from those other .c files
-/*
-    Things will basically work like this:
-	snek.c is a kind of hermaphroditous program that can either be a server or a client depending on which functions are called.
-	A client instance of snek.c (hereafter just "the client" or "the server") sends an input to a server process every (interval). The clock is also client side.
-	The client remembers the last input given, and sends that to the server every (interval) until a new direction is given
-	(the client also needs logic for how you can turn)
-
-*/
-
-// Including a bunch of the given code here. maybe later ill figure out that this was stupid but we gotta start somewhere
-
 #include <sys/socket.h> // for socket()
 #include <arpa/inet.h>  // for add6
 #include <stdio.h>      // for printf()
@@ -46,7 +30,7 @@ typedef int bool;
 #define WIDE 80
 
 #define SNAK '@'
-#define SNEK 'O' // what.
+#define SNEK 'O' // snake head
 #define SNOD 'X' // for "snake bod"
 
 #define REDO 'r'
@@ -68,15 +52,8 @@ struct sockbuff {
 } ;
 
 
-void get_sock(int *sock, add6 address, bool is_server)
-{
- // Ill probably also want this. what does it do? a mystery!
- // I mean okay I guess i can assume it gets a socket.
-}
 
-// note that i probably do actually want cloop and sloop to have some arguments, like passing the socket or w/ever
-// client loop. Takes input, processes it into a game, sends that game to the client
-
+// function for a pthread to run to constantly shunt command line input into a buffer
 void * const_send(void * arg)
 // the purpose of this function is to read from a buffer and write to a socket. these two things will be contained in a struct.
 // cloop() is whats responsible for actually putting data in that buffer
